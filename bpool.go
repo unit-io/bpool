@@ -141,6 +141,7 @@ func NewBufferPool(size int64) *BufferPool {
 	return pool
 }
 
+// Capacity return the buffer pool capacity in proportion to target size.
 func (pool *BufferPool) Capacity() float64 {
 	pool.RLock()
 	defer pool.RUnlock()
@@ -186,6 +187,7 @@ func getRandomValueFromInterval(randomizationFactor, random float64, currentInte
 	return time.Duration(minInterval + (random * (maxInterval - minInterval + 1)))
 }
 
+// NewTicket creates or get ticket from timer pool. It uses backoff duration of the pool for the timer.
 func (pool *BufferPool) NewTicker() *time.Timer {
 	d := time.Duration(time.Duration(pool.Capacity()) * time.Millisecond)
 	if d > 1 {
@@ -202,6 +204,7 @@ func (pool *BufferPool) NewTicker() *time.Timer {
 	return time.NewTimer(d)
 }
 
+// Done closes the buffer pool and stops the drain goroutine.
 func (pool *BufferPool) Done() {
 	close(pool.closeC)
 }
