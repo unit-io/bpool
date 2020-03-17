@@ -8,7 +8,7 @@ This repository was originally built for [tracedb](https://github.com/unit-io/tr
 
 > [trace](https://github.com/unit-io/trace) - Fast and Secure Messaging Broker.
 
-> [tracedb](https://github.com/unit-io/tracedb - Blazing fast database for IoT, real-time messaging applications.
+> [tracedb](https://github.com/unit-io/tracedb) - Blazing fast database for IoT, real-time messaging applications.
 
 > [unitdb](https://github.com/unit-io/unitdb) - Fast time-series database for IoT, real-time applications and AI analytics.
 
