@@ -28,7 +28,7 @@ type Buffer struct {
 
 // Get returns buffer if any in the pool or creates a new buffer
 func (pool *BufferPool) Get() (buf *Buffer) {
-	t := pool.NewTicket()
+	t := pool.NewTicker()
 	select {
 	case buf = <-pool.buf:
 	case <-t.C:
@@ -186,7 +186,7 @@ func getRandomValueFromInterval(randomizationFactor, random float64, currentInte
 	return time.Duration(minInterval + (random * (maxInterval - minInterval + 1)))
 }
 
-func (pool *BufferPool) NewTicket() *time.Timer {
+func (pool *BufferPool) NewTicker() *time.Timer {
 	d := time.Duration(time.Duration(pool.Capacity()) * time.Millisecond)
 	if d > 1 {
 		d = pool.NextBackOff(pool.Capacity())
