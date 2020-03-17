@@ -5,8 +5,11 @@
 </p>
 
 This repository was originally built for [tracedb](https://github.com/unit-io/tracedb database. It is moved to separate repository to make general use of it. Keep watch on following amazing repo that uses bpool.
+
 > [trace](https://github.com/unit-io/trace) - Fast and Secure Messaging Broker.
+
 > [tracedb](https://github.com/unit-io/tracedb - Blazing fast database for IoT, real-time messaging applications.
+
 > [unitdb](https://github.com/unit-io/unitdb) - Fast time-series database for IoT, real-time applications and AI analytics.
 
 
@@ -48,15 +51,13 @@ To write to buffer use buffer.Write() method.
 var scratch [8]byte
 binary.LittleEndian.PutUint64(scratch[0:8], uint64(buffer.Size()))
 
-if _, err := b.buffer.Write(scratch[:]); err != nil {
-    return err
-}
+b.buffer.Write(scratch[:])
 ....
 
 ```
 
 ### Reading from Buffer
-To read buffer use buffer.Bytes() method, this operation returns data slice stored to the buffer.
+To read buffer use buffer.Bytes() method. This operation returns underline data slice stored into buffer.
 
 ```
 
@@ -66,7 +67,7 @@ data := buffer.Bytes()
 ```
 
 ### Put Buffer to Pool
-To put buffer to the pool when finished using buffer use bufPool.Put(buffer) method, this operation resets the slice. It also resets the buffer pool interval that was used to delay the Get operation if capacity is below the target size.
+To put buffer to the pool when finished using buffer use bufPool.Put(buffer) method, this operation resets the underline slice. It also resets the buffer pool interval that was used to delay the Get operation if capacity is below the target size.
 
 ```
 
@@ -75,7 +76,7 @@ bufPool.Put(buffer)
 
 ```
 
-To reset the slice stored to the buffer and continue using the buffer use buffer.Reset() method instead of using pool.Put() operation.
+To reset the underline slice stored to the buffer and continue using the buffer use buffer.Reset() method instead of using pool.Put() operation.
 
 ```
 
