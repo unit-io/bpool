@@ -13,7 +13,7 @@ const (
 	maxBufferSize = (int64(1) << 34) - 1
 
 	// The duration for waiting in the queue due to system memory surge operations
-	DefaultInitialInternal     = 500 * time.Millisecond
+	DefaultInitialInterval     = 500 * time.Millisecond
 	DefaultRandomizationFactor = 0.5
 	DefaultMaxElapsedTime      = 15 * time.Second
 )
@@ -28,7 +28,7 @@ type Buffer struct {
 
 // Get returns buffer if any in the pool or creates a new buffer
 func (pool *BufferPool) Get() (buf *Buffer) {
-	t := pool.NewTicker()
+	t := pool.cap.NewTicker()
 	select {
 	case buf = <-pool.buf:
 	case <-t.C:
@@ -45,7 +45,7 @@ func (pool *BufferPool) Put(buf *Buffer) {
 		return
 	}
 	if pool.Capacity() < 1 {
-		pool.Reset()
+		pool.cap.Reset()
 	}
 	select {
 	case pool.buf <- buf:
@@ -71,6 +71,11 @@ func (buf *Buffer) Internal() []byte {
 func (buf *Buffer) Write(p []byte) (int, error) {
 	buf.Lock()
 	defer buf.Unlock()
+	t := buf.currCap.NewTicker()
+	select {
+	case <-t.C:
+		timerPool.Put(t)
+	}
 	off, err := buf.internal.allocate(uint32(len(p)))
 	if err != nil {
 		return 0, err
@@ -132,18 +137,19 @@ type (
 	Capacity struct {
 		size       int64
 		targetSize int64
+
+		InitialInterval     time.Duration
+		RandomizationFactor float64
+		currentInterval     time.Duration
+		MaxElapsedTime      time.Duration
 	}
 	BufferPool struct {
 		sync.RWMutex
 		buf chan *Buffer
 
 		// Capacity
-		maxSize             int64
-		cap                 *Capacity
-		InitialInterval     time.Duration
-		RandomizationFactor float64
-		currentInterval     time.Duration
-		MaxElapsedTime      time.Duration
+		maxSize int64
+		cap     *Capacity
 
 		// close
 		closeC chan struct{}
@@ -151,26 +157,30 @@ type (
 )
 
 // NewBufferPool creates a new buffer pool.
-func NewBufferPool(size int64) *BufferPool {
+func NewBufferPool(size int64, opts *Options) *BufferPool {
+	opts = opts.copyWithDefaults()
 	if size > maxBufferSize {
 		size = maxBufferSize
 	}
+
+	cap := &Capacity{
+		targetSize:          size,
+		InitialInterval:     opts.InitialInterval,
+		RandomizationFactor: opts.RandomizationFactor,
+		MaxElapsedTime:      opts.MaxElapsedTime,
+	}
+	cap.Reset()
 
 	pool := &BufferPool{
 		buf: make(chan *Buffer, maxPoolSize),
 
 		// Capacity
-		maxSize:             int64(size / maxPoolSize),
-		cap:                 &Capacity{targetSize: size},
-		InitialInterval:     DefaultInitialInternal,
-		RandomizationFactor: DefaultRandomizationFactor,
-		MaxElapsedTime:      DefaultMaxElapsedTime,
-
+		maxSize: int64(size / maxPoolSize),
+		cap:     cap,
 		// close
 		closeC: make(chan struct{}, 1),
 	}
 
-	pool.Reset()
 	go pool.drain()
 
 	return pool
@@ -185,28 +195,28 @@ func (pool *BufferPool) Capacity() float64 {
 
 // Reset the interval back to the initial interval.
 // Reset must be called before using pool.
-func (pool *BufferPool) Reset() {
-	pool.currentInterval = pool.InitialInterval
+func (cap *Capacity) Reset() {
+	cap.currentInterval = cap.InitialInterval
 }
 
 // NextBackOff calculates the next backoff interval using the formula:
 // 	Randomized interval = RetryInterval * (1 ± RandomizationFactor)
-func (pool *BufferPool) NextBackOff(multiplier float64) time.Duration {
-	defer pool.incrementCurrentInterval(multiplier)
-	return getRandomValueFromInterval(pool.RandomizationFactor, rand.Float64(), pool.currentInterval)
+func (cap *Capacity) NextBackOff(multiplier float64) time.Duration {
+	defer cap.incrementCurrentInterval(multiplier)
+	return getRandomValueFromInterval(cap.RandomizationFactor, rand.Float64(), cap.currentInterval)
 }
 
 // Increments the current interval by multiplying it with the multiplier.
-func (pool *BufferPool) incrementCurrentInterval(multiplier float64) {
-	pool.currentInterval = time.Duration(float64(pool.currentInterval) * multiplier)
-	if pool.currentInterval > pool.MaxElapsedTime {
-		pool.currentInterval = pool.MaxElapsedTime
+func (cap *Capacity) incrementCurrentInterval(multiplier float64) {
+	cap.currentInterval = time.Duration(float64(cap.currentInterval) * multiplier)
+	if cap.currentInterval > cap.MaxElapsedTime {
+		cap.currentInterval = cap.MaxElapsedTime
 	}
 }
 
 // Decrements the current interval by diving it with factor.
-func (pool *BufferPool) decrementCurrentInterval(multiplier float64) {
-	pool.currentInterval = time.Duration(float64(pool.currentInterval) * multiplier)
+func (cap *Capacity) decrementCurrentInterval(multiplier float64) {
+	cap.currentInterval = time.Duration(float64(cap.currentInterval) * multiplier)
 }
 
 // Returns a random value from the following interval:
@@ -223,10 +233,11 @@ func getRandomValueFromInterval(randomizationFactor, random float64, currentInte
 }
 
 // NewTicker creates or get ticker from timer pool. It uses backoff duration of the pool for the timer.
-func (pool *BufferPool) NewTicker() *time.Timer {
-	d := time.Duration(time.Duration(pool.Capacity()) * time.Millisecond)
+func (cap *Capacity) NewTicker() *time.Timer {
+	factor := float64(cap.size) / float64(cap.targetSize)
+	d := time.Duration(time.Duration(factor) * time.Millisecond)
 	if d > 1 {
-		d = pool.NextBackOff(pool.Capacity())
+		d = cap.NextBackOff(factor)
 	}
 
 	if v := timerPool.Get(); v != nil {

@@ -20,6 +20,51 @@ To import bpool from source code use go get command.
 
 ## Usage
 
+BufferPool was initially created for [tracedb](https://github.com/unit-io/tracedb) but it moved to a separate repository to make general use of it. 
+
+Tracedb uses buffer pool for all incoming requests such as Put or Batch operations. BUffer is also used while writing data to log file during commit operation and finally when data get synced to file storage. To limit buffer used for incoming requests without slowing the initial requests until it reaches a threshold is the objective of creating BufferPool with capacity. Buffer does not discaes any incoming request but it start delaying the requests gradually to limit the memory usage for other operations such writing log and db sync operations.
+
+Following code snipet if executed without buffer capacity will consume all system memory and will cause a panic.
+
+```
+
+buf := bytes.NewBuffer(make([]byte, 0, 2))
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("panics from blast")
+		}
+	}()
+
+	for {
+		_, err := buf.Write([]byte("create blast"))
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+	}
+
+```
+
+Code snippet to use BufferPool with capacity will limit usage of system memory by adding gradual delay to the requests and will not cause a panic.
+
+```
+
+  pool := bpool.NewBufferPool(1<<20, &bpool.Options{MaxElapsedTime: 1 * time.Hour}) // creates bufferpool of 16MB target size
+	buf := pool.Get()
+	defer	pool.Put(buf)
+	
+	for {
+		_, err := buf.Write([]byte("create blast"))
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+	}
+
+```
+
+
 ### New Buffer Pool
 Use bpool.NewBufferPool() method and pass BufferSize parameter to create new buffer pool.
 
@@ -28,23 +73,23 @@ const (
     BufferSize = 1<<30 // (1GB size)
 )
 
-bufPool := bpool.NewBufferPool(BufferSize)
+pool := bpool.NewBufferPool(BufferSize, nil)
 
 ```
 
 ### Get Buffer
-To get buffer from buffer pool use bufPool.Get(). When buffer pool reaches its capacity Get method runs with gradual delay to limit system memory usage.
+To get buffer from buffer pool use BufferPool.Get(). When buffer pool reaches its capacity Get method runs with gradual delay to limit system memory usage.
 
 ```
 
 ....
 var buffer *bpool.Buffer
-buffer = bufPool.Get()
+buffer = pool.Get()
 
 ```
 
 ### Writing to Buffer
-To write to buffer use buffer.Write() method.
+To write to buffer use Buffer.Write() method.
 
 ```
 
@@ -57,7 +102,7 @@ b.buffer.Write(scratch[:])
 ```
 
 ### Reading from Buffer
-To read buffer use buffer.Bytes() method. This operation returns underline data slice stored into buffer.
+To read buffer use Buffer.Bytes() method. This operation returns underline data slice stored into buffer.
 
 ```
 
@@ -67,16 +112,16 @@ data := buffer.Bytes()
 ```
 
 ### Put Buffer to Pool
-To put buffer to the pool when finished using buffer use bufPool.Put(buffer) method, this operation resets the underline slice. It also resets the buffer pool interval that was used to delay the Get operation if capacity is below the target size.
+To put buffer to the pool when finished using buffer use BufferPool.Put() method, this operation resets the underline slice. It also resets the buffer pool interval that was used to delay the Get operation if capacity is below the target size.
 
 ```
 
-bufPool.Put(buffer)
+pool.Put(buffer)
 ...
 
 ```
 
-To reset the underline slice stored to the buffer and continue using the buffer use buffer.Reset() method instead of using pool.Put() operation.
+To reset the underline slice stored to the buffer and continue using the buffer use Buffer.Reset() method instead of using BufferPool.Put() operation.
 
 ```
 

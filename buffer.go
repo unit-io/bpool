@@ -13,7 +13,7 @@ type (
 )
 
 func (b *buffer) append(data []byte) (int64, error) {
-	off := b.size
+	off := b.Size()
 	if _, err := b.writeAt(data, off); err != nil {
 		return 0, err
 	}
@@ -24,12 +24,12 @@ func (b *buffer) allocate(size uint32) (int64, error) {
 	if size == 0 {
 		panic("unable to allocate zero bytes")
 	}
-	off := atomic.LoadInt64(&b.size)
+	off := b.Size()
 	return off, b.truncate(off + int64(size))
 }
 
 func (b *buffer) bytes() ([]byte, error) {
-	return b.slice(0, b.size)
+	return b.slice(0, b.Size())
 }
 
 func (b *buffer) reset() (ok bool) {
@@ -41,7 +41,7 @@ func (b *buffer) reset() (ok bool) {
 
 func (b *buffer) read(p []byte) (int, error) {
 	n := len(p)
-	if int64(n) > b.size {
+	if int64(n) > b.Size() {
 		return 0, errors.New("eof")
 	}
 	copy(p, b.buf[:int64(n)])
@@ -50,7 +50,7 @@ func (b *buffer) read(p []byte) (int, error) {
 
 func (b *buffer) readAt(p []byte, off int64) (int, error) {
 	n := len(p)
-	if int64(n) > b.size-off {
+	if int64(n) > b.Size()-off {
 		return 0, errors.New("eof")
 	}
 	copy(p, b.buf[off:off+int64(n)])
@@ -59,10 +59,10 @@ func (b *buffer) readAt(p []byte, off int64) (int, error) {
 
 func (b *buffer) writeAt(p []byte, off int64) (int, error) {
 	n := len(p)
-	if off == b.size {
+	if off == b.Size() {
 		b.buf = append(b.buf, p...)
-		b.size += int64(n)
-	} else if off+int64(n) > b.size {
+		atomic.AddInt64(&b.size, int64(n))
+	} else if off+int64(n) > b.Size() {
 		panic("trying to write past EOF - undefined behavior")
 	} else {
 		copy(b.buf[off:off+int64(n)], p)
