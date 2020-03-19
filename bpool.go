@@ -53,6 +53,20 @@ func (pool *BufferPool) Put(buf *Buffer) {
 	}
 }
 
+func (buf *Buffer) Extend(size int64) (int64, error) {
+	off := buf.internal.size
+	if err := buf.internal.truncate(off + size); err != nil {
+		return 0, err
+	}
+	buf.internal.size += size
+
+	return off, nil
+}
+
+func (buf *Buffer) Internal() []byte {
+	return buf.internal.buf
+}
+
 // Write writes to the buffer
 func (buf *Buffer) Write(p []byte) (int, error) {
 	buf.Lock()
@@ -74,6 +88,27 @@ func (buf *Buffer) Bytes() []byte {
 	defer buf.RUnlock()
 	data, _ := buf.internal.bytes()
 	return data
+}
+
+// Slice provide the data for start and end offset
+func (buf *Buffer) Slice(start int64, end int64) ([]byte, error) {
+	p := make([]byte, end-start)
+	_, err := buf.internal.readAt(p, start)
+	return p, err
+}
+
+// ReadAt read byte of size at the given offset from internal buffer
+func (buf *Buffer) ReadAt(p []byte, off int64) (int, error) {
+	buf.RLock()
+	defer buf.RUnlock()
+	return buf.internal.readAt(p, off)
+}
+
+// Read reads specific number of bytes from internal buffer
+func (buf *Buffer) Read(p []byte) (int, error) {
+	buf.RLock()
+	defer buf.RUnlock()
+	return buf.internal.read(p)
 }
 
 // Reset resets the buffer
@@ -187,7 +222,7 @@ func getRandomValueFromInterval(randomizationFactor, random float64, currentInte
 	return time.Duration(minInterval + (random * (maxInterval - minInterval + 1)))
 }
 
-// NewTicket creates or get ticket from timer pool. It uses backoff duration of the pool for the timer.
+// NewTicker creates or get ticker from timer pool. It uses backoff duration of the pool for the timer.
 func (pool *BufferPool) NewTicker() *time.Timer {
 	d := time.Duration(time.Duration(pool.Capacity()) * time.Millisecond)
 	if d > 1 {
@@ -197,7 +232,7 @@ func (pool *BufferPool) NewTicker() *time.Timer {
 	if v := timerPool.Get(); v != nil {
 		t := v.(*time.Timer)
 		if t.Reset(d) {
-			panic(fmt.Sprintf("pool.NewTicket: active timer trapped to the pool"))
+			panic(fmt.Sprintf("pool.NewTicker: active timer trapped to the pool"))
 		}
 		return t
 	}

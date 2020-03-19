@@ -39,6 +39,15 @@ func (b *buffer) reset() (ok bool) {
 	return true
 }
 
+func (b *buffer) read(p []byte) (int, error) {
+	n := len(p)
+	if int64(n) > b.size {
+		return 0, errors.New("eof")
+	}
+	copy(p, b.buf[:int64(n)])
+	return n, nil
+}
+
 func (b *buffer) readAt(p []byte, off int64) (int, error) {
 	n := len(p)
 	if int64(n) > b.size-off {
