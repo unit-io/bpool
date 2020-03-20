@@ -4,7 +4,7 @@
   <img src="tracedb.png" width="70" alt="bpool" title="bpool: Buffer pool with capacity in order to prevent from excess memory usage and CPU trashing"> 
 </p>
 
-This repository was originally built for [tracedb](https://github.com/unit-io/tracedb database. It is moved to separate repository to make general use of it. Keep watch on following amazing repo that uses bpool.
+This repository was originally built for [tracedb](https://github.com/unit-io/tracedb database and later moved to a separate repository to make general use of it. Keep watch on following amazing repo that uses bpool.
 
 > [trace](https://github.com/unit-io/trace) - Fast and Secure Messaging Broker.
 
@@ -20,11 +20,11 @@ To import bpool from source code use go get command.
 
 ## Usage
 
-BufferPool was initially created for [tracedb](https://github.com/unit-io/tracedb) but it moved to a separate repository to make general use of it. 
+BufferPool was initially created for [tracedb](https://github.com/unit-io/tracedb) and later moved to a separate repository to make general use of it. 
 
-Tracedb uses buffer pool for all incoming requests such as Put or Batch operations. BUffer is also used while writing data to log file during commit operation and finally when data get synced to file storage. To limit buffer used for incoming requests without slowing the initial requests until it reaches a threshold is the objective of creating BufferPool with capacity. Buffer does not discaes any incoming request but it start delaying the requests gradually to limit the memory usage for other operations such writing log and db sync operations.
+Tracedb uses buffer pool for writing incoming requests to buffer such as Put or Batch operations. Buffer pool is also used while writing data to log file (during commit operation) or finally data get synced to file storage. The objective of creating BufferPool with capacity is to perform initial writes to buffer without backoff until buffer pool reaches its target size. Buffer pool does not discard any Get or Write requests but it add gradual delay to it to limit the memory usage that can used for other operations such writing to log or db sync operations.
 
-Following code snipet if executed without buffer capacity will consume all system memory and will cause a panic.
+Following code snippet if executed without buffer capacity will consume all system memory and will cause a panic.
 
 ```
 
@@ -50,7 +50,7 @@ Code snippet to use BufferPool with capacity will limit usage of system memory b
 
 ```
 
-  pool := bpool.NewBufferPool(1<<20, &bpool.Options{MaxElapsedTime: 1 * time.Hour}) // creates bufferpool of 16MB target size
+  pool := bpool.NewBufferPool(1<<20, &bpool.Options{MaxElapsedTime: 1 * time.Minute, WriteBackOff: true}) // creates bufferpool of 16MB target size
 	buf := pool.Get()
 	defer	pool.Put(buf)
 	

@@ -21,7 +21,7 @@ const (
 var timerPool sync.Pool
 
 type Buffer struct {
-	currCap      *Capacity
+	cap          *Capacity
 	internal     buffer
 	sync.RWMutex // Read Write mutex, guards access to internal buffer.
 }
@@ -33,7 +33,7 @@ func (pool *BufferPool) Get() (buf *Buffer) {
 	case buf = <-pool.buf:
 	case <-t.C:
 		timerPool.Put(t)
-		buf = &Buffer{currCap: pool.cap}
+		buf = &Buffer{cap: pool.cap}
 	}
 	return
 }
@@ -71,10 +71,12 @@ func (buf *Buffer) Internal() []byte {
 func (buf *Buffer) Write(p []byte) (int, error) {
 	buf.Lock()
 	defer buf.Unlock()
-	t := buf.currCap.NewTicker()
-	select {
-	case <-t.C:
-		timerPool.Put(t)
+	if buf.cap.WriteBackOff {
+		t := buf.cap.NewTicker()
+		select {
+		case <-t.C:
+			timerPool.Put(t)
+		}
 	}
 	off, err := buf.internal.allocate(uint32(len(p)))
 	if err != nil {
@@ -83,7 +85,7 @@ func (buf *Buffer) Write(p []byte) (int, error) {
 	if _, err := buf.internal.writeAt(p, off); err != nil {
 		return 0, err
 	}
-	buf.currCap.size += int64(len(p))
+	buf.cap.size += int64(len(p))
 	return len(p), nil
 }
 
@@ -120,7 +122,7 @@ func (buf *Buffer) Read(p []byte) (int, error) {
 func (buf *Buffer) Reset() (ok bool) {
 	buf.Lock()
 	defer buf.Unlock()
-	buf.currCap.size -= buf.internal.size
+	buf.cap.size -= buf.internal.size
 	return buf.internal.reset()
 }
 
@@ -142,6 +144,8 @@ type (
 		RandomizationFactor float64
 		currentInterval     time.Duration
 		MaxElapsedTime      time.Duration
+
+		WriteBackOff bool
 	}
 	BufferPool struct {
 		sync.RWMutex
@@ -168,6 +172,8 @@ func NewBufferPool(size int64, opts *Options) *BufferPool {
 		InitialInterval:     opts.InitialInterval,
 		RandomizationFactor: opts.RandomizationFactor,
 		MaxElapsedTime:      opts.MaxElapsedTime,
+
+		WriteBackOff: opts.WriteBackOff,
 	}
 	cap.Reset()
 
