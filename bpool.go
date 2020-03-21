@@ -14,9 +14,9 @@ const (
 
 	// DefaultInitialInterval duration for waiting in the queue due to system memory surge operations
 	DefaultInitialInterval = 500 * time.Millisecond
-	// RandomizationFactor sets factor to backoff when buffer pool reaches target size
+	// DefaultRandomizationFactor sets factor to backoff when buffer pool reaches target size
 	DefaultRandomizationFactor = 0.5
-	// MaxElapsedTime sets maximum elapsed time to wait during backoff
+	// DefaultMaxElapsedTime sets maximum elapsed time to wait during backoff
 	DefaultMaxElapsedTime = 15 * time.Second
 )
 
