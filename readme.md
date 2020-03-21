@@ -1,4 +1,4 @@
-# bpool forked from tracedb [![GoDoc](https://pkg.go.dev/github.com/unit-io/bpool?status.svg)](https://pkg.go.dev/github.com/unit-io/bpool) [![Go Report Card](https://goreportcard.com/badge/github.com/unit-io/bpool)](https://goreportcard.com/report/github.com/unit-io/bpool)
+# bpool forked from tracedb [![GoDoc](https://godoc.org/github.com/unit-io/bpool?status.svg)](https://pkg.go.dev/github.com/unit-io/bpool) [![Go Report Card](https://goreportcard.com/badge/github.com/unit-io/bpool)](https://goreportcard.com/report/github.com/unit-io/bpool)
 
 <p align="left">
   <img src="tracedb.png" width="70" alt="bpool" title="bpool: Buffer pool with capacity in order to prevent from excess memory usage and CPU trashing"> 
