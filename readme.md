@@ -1,10 +1,10 @@
-# bpool forked from tracedb [![GoDoc](https://godoc.org/github.com/unit-io/tracedb?status.svg)](https://godoc.org/github.com/unit-io/tracedb) [![Go Report Card](https://goreportcard.com/badge/github.com/unit-io/tracedb)](https://goreportcard.com/report/github.com/unit-io/tracedb)
+# bpool forked from tracedb [![GoDoc](https://pkg.go.dev/github.com/unit-io/bpool?status.svg)](https://pkg.go.dev/github.com/unit-io/bpool) [![Go Report Card](https://goreportcard.com/badge/github.com/unit-io/bpool)](https://goreportcard.com/report/github.com/unit-io/bpool)
 
 <p align="left">
   <img src="tracedb.png" width="70" alt="bpool" title="bpool: Buffer pool with capacity in order to prevent from excess memory usage and CPU trashing"> 
 </p>
 
-This repository was originally built for [tracedb](https://github.com/unit-io/tracedb database and later moved to a separate repository to make general use of it. Keep watch on following amazing repo that uses bpool.
+This repository was originally built for [tracedb](https://github.com/unit-io/tracedb) database and later moved to a separate repository to make general use of it. Keep watch on following amazing repo that uses bpool.
 
 > [trace](https://github.com/unit-io/trace) - Fast and Secure Messaging Broker.
 
@@ -28,7 +28,7 @@ Following code snippet if executed without buffer capacity will consume all syst
 
 ```
 
-buf := bytes.NewBuffer(make([]byte, 0, 2))
+	buf := bytes.NewBuffer(make([]byte, 0, 2))
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -50,7 +50,7 @@ Code snippet to use BufferPool with capacity will limit usage of system memory b
 
 ```
 
-  pool := bpool.NewBufferPool(1<<20, &bpool.Options{MaxElapsedTime: 1 * time.Minute, WriteBackOff: true}) // creates bufferpool of 16MB target size
+  	pool := bpool.NewBufferPool(1<<20, &bpool.Options{MaxElapsedTime: 1 * time.Minute, WriteBackOff: true}) // creates BufferPool of 16MB target size
 	buf := pool.Get()
 	defer	pool.Put(buf)
 	
@@ -69,11 +69,11 @@ Code snippet to use BufferPool with capacity will limit usage of system memory b
 Use bpool.NewBufferPool() method and pass BufferSize parameter to create new buffer pool.
 
 ```
-const (
-    BufferSize = 1<<30 // (1GB size)
-)
+	const (
+		BufferSize = 1<<30 // (1GB size)
+	)
 
-pool := bpool.NewBufferPool(BufferSize, nil)
+	pool := bpool.NewBufferPool(BufferSize, nil)
 
 ```
 
@@ -82,9 +82,9 @@ To get buffer from buffer pool use BufferPool.Get(). When buffer pool reaches it
 
 ```
 
-....
-var buffer *bpool.Buffer
-buffer = pool.Get()
+	....
+	var buffer *bpool.Buffer
+	buffer = pool.Get()
 
 ```
 
@@ -93,11 +93,11 @@ To write to buffer use Buffer.Write() method.
 
 ```
 
-var scratch [8]byte
-binary.LittleEndian.PutUint64(scratch[0:8], uint64(buffer.Size()))
+	var scratch [8]byte
+	binary.LittleEndian.PutUint64(scratch[0:8], uint64(buffer.Size()))
 
-b.buffer.Write(scratch[:])
-....
+	b.buffer.Write(scratch[:])
+	....
 
 ```
 
@@ -106,8 +106,8 @@ To read buffer use Buffer.Bytes() method. This operation returns underline data 
 
 ```
 
-data := buffer.Bytes()
-...
+	data := buffer.Bytes()
+	...
 
 ```
 
@@ -116,8 +116,8 @@ To put buffer to the pool when finished using buffer use BufferPool.Put() method
 
 ```
 
-pool.Put(buffer)
-...
+	pool.Put(buffer)
+	...
 
 ```
 
@@ -125,8 +125,8 @@ To reset the underline slice stored to the buffer and continue using the buffer 
 
 ```
 
-buffer.Reset()
-....
+	buffer.Reset()
+	....
 
 ```
 

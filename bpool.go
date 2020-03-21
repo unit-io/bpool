@@ -12,14 +12,17 @@ const (
 	// maxBufferSize value to limit maximum memory for the buffer.
 	maxBufferSize = (int64(1) << 34) - 1
 
-	// The duration for waiting in the queue due to system memory surge operations
-	DefaultInitialInterval     = 500 * time.Millisecond
+	// DefaultInitialInterval duration for waiting in the queue due to system memory surge operations
+	DefaultInitialInterval = 500 * time.Millisecond
+	// RandomizationFactor sets factor to backoff when buffer pool reaches target size
 	DefaultRandomizationFactor = 0.5
-	DefaultMaxElapsedTime      = 15 * time.Second
+	// MaxElapsedTime sets maximum elapsed time to wait during backoff
+	DefaultMaxElapsedTime = 15 * time.Second
 )
 
 var timerPool sync.Pool
 
+// Buffer managed buffer by BufferPool for optimum memory usage
 type Buffer struct {
 	cap          *Capacity
 	internal     buffer
@@ -53,16 +56,24 @@ func (pool *BufferPool) Put(buf *Buffer) {
 	}
 }
 
+// Extend allocates size to the buffer.
+// Must extend buffer before calling buffer.Internal() method
 func (buf *Buffer) Extend(size int64) (int64, error) {
-	off := buf.internal.size
-	if err := buf.internal.truncate(off + size); err != nil {
+	buf.Lock()
+	defer buf.Unlock()
+	off, err := buf.internal.allocate(uint32(size))
+	if err != nil {
 		return 0, err
 	}
-	buf.internal.size += size
-
+	buf.cap.size += size
 	return off, nil
 }
 
+// Internal returns underline internal buffer.
+// This method is useful when you need an underline byte slice of a buffer
+// for example while reading chunk from os.File i.e file.ReatAt() method.
+// It is not safe to call buffer.Write() method once you get underline byte slice.
+// You need to perform an external locking if calling buffer.Internal() and buffer.Write() methods.
 func (buf *Buffer) Internal() []byte {
 	return buf.internal.buf
 }
@@ -133,9 +144,8 @@ func (buf *Buffer) Size() int64 {
 	return buf.internal.size
 }
 
-// BufferPool represents the thread safe buffer pool.
-// All BufferPool methods are safe for concurrent use by multiple goroutines.
 type (
+	// Capacity manages the BufferPool capacity to limit excess memory usage.
 	Capacity struct {
 		size       int64
 		targetSize int64
@@ -147,6 +157,8 @@ type (
 
 		WriteBackOff bool
 	}
+	// BufferPool represents the thread safe buffer pool.
+	// All BufferPool methods are safe for concurrent use by multiple goroutines.
 	BufferPool struct {
 		sync.RWMutex
 		buf chan *Buffer
@@ -178,10 +190,10 @@ func NewBufferPool(size int64, opts *Options) *BufferPool {
 	cap.Reset()
 
 	pool := &BufferPool{
-		buf: make(chan *Buffer, maxPoolSize),
+		buf: make(chan *Buffer, opts.MaxPoolSize),
 
 		// Capacity
-		maxSize: int64(size / maxPoolSize),
+		maxSize: int64(size / int64(opts.MaxPoolSize)),
 		cap:     cap,
 		// close
 		closeC: make(chan struct{}, 1),
@@ -220,9 +232,9 @@ func (cap *Capacity) incrementCurrentInterval(multiplier float64) {
 	}
 }
 
-// Decrements the current interval by diving it with factor.
-func (cap *Capacity) decrementCurrentInterval(multiplier float64) {
-	cap.currentInterval = time.Duration(float64(cap.currentInterval) * multiplier)
+// Decrements the current interval by multiplying it with factor.
+func (cap *Capacity) decrementCurrentInterval(factor float64) {
+	cap.currentInterval = time.Duration(float64(cap.currentInterval) * factor)
 }
 
 // Returns a random value from the following interval:
