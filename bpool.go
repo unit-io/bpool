@@ -100,6 +100,23 @@ func (buf *Buffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// WriteAt writes to the buffer at the given offset
+func (buf *Buffer) WriteAt(p []byte, off int64) (int, error) {
+	buf.Lock()
+	defer buf.Unlock()
+	if buf.cap.WriteBackOff {
+		t := buf.cap.NewTicker()
+		select {
+		case <-t.C:
+			timerPool.Put(t)
+		}
+	}
+	if _, err := buf.internal.writeAt(p, off); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
 // Bytes gets data from internal buffer
 func (buf *Buffer) Bytes() []byte {
 	buf.RLock()
