@@ -65,6 +65,8 @@ func (buf *Buffer) Extend(size int64) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	buf.cap.Lock()
+	defer buf.cap.Unlock()
 	buf.cap.size += size
 	return off, nil
 }
@@ -96,6 +98,8 @@ func (buf *Buffer) Write(p []byte) (int, error) {
 	if _, err := buf.internal.writeAt(p, off); err != nil {
 		return 0, err
 	}
+	buf.cap.Lock()
+	defer buf.cap.Unlock()
 	buf.cap.size += int64(len(p))
 	return len(p), nil
 }
@@ -150,6 +154,9 @@ func (buf *Buffer) Read(p []byte) (int, error) {
 func (buf *Buffer) Reset() (ok bool) {
 	buf.Lock()
 	defer buf.Unlock()
+
+	buf.cap.Lock()
+	defer buf.cap.Unlock()
 	buf.cap.size -= buf.internal.size
 	return buf.internal.reset()
 }
@@ -164,6 +171,8 @@ func (buf *Buffer) Size() int64 {
 type (
 	// Capacity manages the BufferPool capacity to limit excess memory usage.
 	Capacity struct {
+		sync.RWMutex
+
 		size       int64
 		targetSize int64
 
@@ -177,7 +186,6 @@ type (
 	// BufferPool represents the thread safe buffer pool.
 	// All BufferPool methods are safe for concurrent use by multiple goroutines.
 	BufferPool struct {
-		sync.RWMutex
 		buf chan *Buffer
 
 		// Capacity
@@ -223,14 +231,16 @@ func NewBufferPool(size int64, opts *Options) *BufferPool {
 
 // Capacity return the buffer pool capacity in proportion to target size.
 func (pool *BufferPool) Capacity() float64 {
-	pool.RLock()
-	defer pool.RUnlock()
+	pool.cap.RLock()
+	defer pool.cap.RUnlock()
 	return float64(pool.cap.size) / float64(pool.cap.targetSize)
 }
 
 // Reset the interval back to the initial interval.
 // Reset must be called before using pool.
 func (cap *Capacity) Reset() {
+	cap.Lock()
+	defer cap.Unlock()
 	cap.currentInterval = cap.InitialInterval
 }
 
@@ -269,7 +279,9 @@ func getRandomValueFromInterval(randomizationFactor, random float64, currentInte
 
 // NewTicker creates or get ticker from timer pool. It uses backoff duration of the pool for the timer.
 func (cap *Capacity) NewTicker() *time.Timer {
+	cap.RLock()
 	factor := float64(cap.size) / float64(cap.targetSize)
+	cap.RUnlock()
 	d := time.Duration(time.Duration(factor) * time.Millisecond)
 	if d > 1 {
 		d = cap.NextBackOff(factor)
