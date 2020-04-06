@@ -17,7 +17,8 @@ const (
 	// DefaultRandomizationFactor sets factor to backoff when buffer pool reaches target size
 	DefaultRandomizationFactor = 0.5
 	// DefaultMaxElapsedTime sets maximum elapsed time to wait during backoff
-	DefaultMaxElapsedTime = 15 * time.Second
+	DefaultMaxElapsedTime   = 15 * time.Second
+	DefaultBackoffThreshold = 0.7
 )
 
 var timerPool sync.Pool
@@ -295,6 +296,13 @@ func (cap *Capacity) NewTicker() *time.Timer {
 		return t
 	}
 	return time.NewTimer(d)
+}
+
+// Backoff return true if buffer pool currentInterval is greater than Backoff threshold.
+func (pool *BufferPool) Backoff() bool {
+	pool.cap.RLock()
+	defer pool.cap.RUnlock()
+	return pool.cap.currentInterval > time.Duration(float64(pool.cap.MaxElapsedTime)*float64(DefaultBackoffThreshold))
 }
 
 // Done closes the buffer pool and stops the drain goroutine.
