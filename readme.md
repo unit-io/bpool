@@ -119,4 +119,4 @@ To reset the underline slice stored to the buffer and continue using the buffer 
 If you'd like to contribute, please fork the repository and use a feature branch. Pull requests are welcome.
 
 ## Licensing
-Copyright (c) 2016-2020 Saffat IT Solutions Pvt Ltd. This project is licensed under [MIT License](https://github.com/unit-io/bpool/blob/master/LICENSE).
+This project is licensed under [MIT License](https://github.com/unit-io/bpool/blob/master/LICENSE).
