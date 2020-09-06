@@ -30,6 +30,11 @@ type Buffer struct {
 	sync.RWMutex // Read Write mutex, guards access to internal buffer.
 }
 
+// NewBuffer returns buffer and initializes it using buf as its initial content.
+func (pool *BufferPool) NewBuffer(buf []byte) *Buffer {
+	return &Buffer{cap: pool.cap, internal: buffer{buf: buf, size: int64(len(buf))}}
+}
+
 // Get returns buffer if any in the pool or creates a new buffer
 func (pool *BufferPool) Get() (buf *Buffer) {
 	t := pool.cap.NewTicker()
@@ -254,6 +259,8 @@ func (cap *Capacity) NextBackOff(multiplier float64) time.Duration {
 
 // Increments the current interval by multiplying it with the multiplier.
 func (cap *Capacity) incrementCurrentInterval(multiplier float64) {
+	cap.Lock()
+	defer cap.Unlock()
 	cap.currentInterval = time.Duration(float64(cap.currentInterval) * multiplier)
 	if cap.currentInterval > cap.MaxElapsedTime {
 		cap.currentInterval = cap.MaxElapsedTime
@@ -298,11 +305,13 @@ func (cap *Capacity) NewTicker() *time.Timer {
 	return time.NewTimer(d)
 }
 
-// Backoff return true if buffer pool currentInterval is greater than Backoff threshold.
-func (pool *BufferPool) Backoff() bool {
-	pool.cap.RLock()
-	defer pool.cap.RUnlock()
-	return pool.cap.currentInterval > time.Duration(float64(pool.cap.MaxElapsedTime)*float64(DefaultBackoffThreshold))
+// Backoff backs off buffer pool if currentInterval is greater than Backoff threshold.
+func (pool *BufferPool) Backoff() {
+	t := pool.cap.NewTicker()
+	select {
+	case <-t.C:
+		timerPool.Put(t)
+	}
 }
 
 // Done closes the buffer pool and stops the drain goroutine.

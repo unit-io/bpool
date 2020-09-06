@@ -34,8 +34,7 @@ func (b *buffer) bytes() ([]byte, error) {
 
 func (b *buffer) reset() (ok bool) {
 	atomic.StoreInt64(&b.size, 0)
-	// b.buf = b.buf[:0]
-	b.buf = nil
+	b.buf = b.buf[:0]
 	return true
 }
 
@@ -91,6 +90,6 @@ func (b *buffer) Size() int64 {
 }
 
 // incSize increases buffer size to allocate more buffer
-func (b *buffer) incSize(size int64) int64 {
+func (b *buffer) grow(size int64) int64 {
 	return atomic.AddInt64(&b.size, size)
 }
