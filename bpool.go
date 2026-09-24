@@ -199,7 +199,8 @@ type (
 		cap     *Capacity
 
 		// close
-		closeC chan struct{}
+		closeC    chan struct{}
+		closeOnce sync.Once
 	}
 )
 
@@ -314,22 +315,24 @@ func (pool *BufferPool) Backoff() {
 	}
 }
 
-// Done closes the buffer pool and stops the drain goroutine.
+// Done closes the buffer pool and stops the drain goroutine. It is safe to
+// call more than once.
 func (pool *BufferPool) Done() {
-	close(pool.closeC)
+	pool.closeOnce.Do(func() { close(pool.closeC) })
 }
 
+// drain releases a pooled buffer every 30 seconds until the pool is done. It
+// returns as soon as Done is called; it used to check only on each tick, so the
+// goroutine outlived the pool by up to 30 seconds.
 func (pool *BufferPool) drain() {
 	ticker := time.NewTicker(30 * time.Second)
-	defer func() {
-		ticker.Stop()
-	}()
+	defer ticker.Stop()
 	for {
 		select {
+		case <-pool.closeC:
+			return
 		case <-ticker.C:
 			select {
-			case <-pool.closeC:
-				return
 			case <-pool.buf:
 			default:
 			}
